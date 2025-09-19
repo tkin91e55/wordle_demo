@@ -9,15 +9,14 @@ function randomPick(array) {
 function App() {
 
   // configurations
-  // assume no duplicate letters in the PREDEFINED_WORDS, otherwise coloring rule not clear
-  const PREDEFINED_WORDS = ['REACT','STATE','PROPS', 'REDUX'];
+  // words with duplicate letter has undeterministic coloring
+  const PREDEFINED_WORDS = ['REACT', 'HOOKS' ,'STATE','PROPS', 'REDUX'];
   const MAX_ROUNDS = 6;
   const COLORS = { key_bg: '#818384', hit: '#538d4e', present: '#b59f3b', miss: '#3a3a3c'}
   // TODO: extra, configurable word length, now fixed to 5
 
   // states
   const correct_word = randomPick(PREDEFINED_WORDS);
-  const entered_chars = new Set();
   let round = 0;
   let game_ended = false;
   const cur_string = Array(5).fill(null);
@@ -26,13 +25,7 @@ function App() {
   let dummy_target = new EventTarget(); // for key pressed publishing
 
   // UI components here
-  function Prompt({msg}){
-    return (
-      <div className="prompt">
-        {msg}
-      </div>
-    )
-  }
+  function Prompt({msg}){ return ( <div className="prompt"> {msg} </div>) }
 
   console.log(`[Cheat] correct answer: ${correct_word}`)
 
@@ -46,10 +39,20 @@ function App() {
                       margin:'3px 0px' , border:'1px solid #3a3a3c',}
 
       function check_Enter() {
-          if ( correct_word[col] == _letter )  { setColor(COLORS['hit']); }
+          let q = document.querySelector(`.rect-btn[id="${_letter}"]`)
+          if ( correct_word[col] == _letter )  {
+            setColor(COLORS['hit']);
+            q.style.backgroundColor = COLORS['hit'];
+          }
           else{
-            if (correct_word.indexOf(_letter)>=0) { setColor(COLORS['present']); }
-            else                                  { setColor(COLORS['miss']);    }
+            if (correct_word.indexOf(_letter)>=0) {
+              setColor(COLORS['present']);
+            q.style.backgroundColor = COLORS['present'];
+            }
+            else                                  {
+              setColor(COLORS['miss']);
+              q.style.backgroundColor = COLORS['miss'];
+            }
           }
       }
 
@@ -118,7 +121,6 @@ function App() {
     function BtnRect({ch, bg_color}) {
 
       const _style = {height:'50px', minWidth:'50px', margin:'2px'}
-      const [color, setColor] = useState(bg_color);
 
       function on_enter_pressed() {
         if (cur_string.includes(null)) { return; }
@@ -145,7 +147,7 @@ function App() {
       }
 
       return (
-        <button className="rect-btn" style= {{..._style, backgroundColor: color}}
+        <button className="rect-btn" id={ch} style= {{..._style, backgroundColor: bg_color}}
                 onClick={key_pressed} value={ch} >
           {ch}
         </button>)
