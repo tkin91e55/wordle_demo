@@ -47,7 +47,7 @@ function App() {
           else{
             if (correct_word.indexOf(_letter)>=0) {
               setColor(COLORS['present']);
-            q.style.backgroundColor = COLORS['present'];
+              q.style.backgroundColor = COLORS['present'];
             }
             else                                  {
               setColor(COLORS['miss']);
