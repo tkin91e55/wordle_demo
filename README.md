@@ -51,3 +51,12 @@
   Your node.js/python version maybe different from mine. I hope this will still work.
 
   There is no complicated dependencies for Part 1.
+
+# Extra feature
+
+  (Any?)
+
+# Remarks
+
+  * No word validation. Unlike the orignal game reference, which validate sequnece of input need to be some valid.
+    This would need to have common words dictionary check.
