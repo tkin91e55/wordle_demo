@@ -15,11 +15,14 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from singleplayer.views import check_word, index
 
 urlpatterns = [
     # path('admin/', admin.site.urls),
     path('', index, name='index'),
     path('check_ans_s', check_word , name='check_ans_single'), # api endpoint for single player
+
+    # multiplayer
+    path('task4/', include('multiplayer.urls')),
 ]

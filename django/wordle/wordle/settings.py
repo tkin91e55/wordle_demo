@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'singleplayer',
+    'multiplayer',
 ]
 
 MIDDLEWARE = [
