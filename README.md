@@ -15,35 +15,49 @@
 
    Some of the key files listed as:
 
-    ```tree
+    ```
     ├── README.md
     ├── django
-    │   ├── poetry.lock
-    │   └── pyproject.toml
+    │   ├── README.md
+    │   ├── requirements.txt
+    │   └── wordle
+    │       ├── manage.py
+    │       ├── singleplayer
+    │       │   ├── static
+    │       │   │   └── singleplayer
+    │       │   │       ├── index-D1ZiPh2P.js  (built react code)
+    │       │   │       └── index-D8b4DHJx.css (built react style)
+    │       │   ├── templates
+    │       │   │   └── singleplayer
+    │       │   │       └── index.html
+    │       │   └── views.py  ( The main logic of server side)
+    │       └── wordle
+    │           ├── settings.py
+    │           └── urls.py
     └── react
+        ├── index.html
         ├── package.json
         └── src
-            ├── App.jsx   (The Part 1 implementation)
-            └── main.jsx
+            └── App.jsx (The Part 2 modication is here)
     ```
 
-    `Poetry` is a more modern Python project management tool, similar to pip+virtualenv.
-    And `npm` and `vite` is used for package management for React.js
+# Installation and Boot up Part 2 demo
 
+  The react code has been built into Django.
 
-# Installation and Boot up Part 1 demo
-
-  Need to have node.js, npm.
+  REQUIREMENT: Prepare Python 3, pip
 
   In a shell,
 
   ```
-  cd react
-  npm install # instlal the react, vite and other dependencies
-  npm run dev
+  cd django                        # go to django folder
+  python3 -m venv venv             # create a virtual environment
+  source venv/bin/activate
+  pip install -r requirements.txt  # install dependencies
+  python wordle/manage.py runserver
   ```
 
-  Then visit http://127.0.0.1:5173 to see the demo.
+  Then visit http://127.0.0.1:8000 to see the demo.
 
 ## Versioning
 
@@ -51,3 +65,10 @@
   Your node.js/python version maybe different from mine. I hope this will still work.
 
   There is no complicated dependencies for Part 1.
+
+# Features
+
+  * This task 2 is different from task 1. The answer is not generated in the client side.
+    Client can only send a guess to the server, and the server will return `is_correct` and
+    `colors` array and let the client to render the result. The game in client only ends when
+    `is_correct` is true before the number of tries run out.
