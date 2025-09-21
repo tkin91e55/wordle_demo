@@ -51,7 +51,7 @@ def check_answer(game_id,guess):
 # TODO document the exhange format data
 import json
 @csrf_exempt
-def check_word(request):
+def submit_guess(request):
     body = json.loads(request.body)
     print(f"{body=}, {dict_game_ans=}")
     try:
