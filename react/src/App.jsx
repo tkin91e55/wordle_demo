@@ -1,25 +1,34 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 
-function randomPick(array) {
-  let choice = Math.floor(Math.random() * array.length);
-  return array[choice];
-}
-
 function App() {
 
+  // Use global wordleConfig for app initialization
+  const default_config = {
+    MAX_ROUNDS: 6,
+    COLORS: {
+              key_bg: '#818384', hit: '#538d4e',
+              present: '#b59f3b', miss: '#3a3a3c'
+            },
+    HOST: "http://127.0.0.1:8000",
+  };
+  const config = window.wordleConfig || default_config;
+  // merge configs
+  Object.keys(default_config).forEach( k =>
+    { if (config[k] === undefined) { config[k] = default_config[k]; }
+    })
+
   // configurations
-  // words with duplicate letter has undeterministic coloring
-  const PREDEFINED_WORDS = ['REACT', 'HOOKS' ,'STATE','PROPS', 'REDUX'];
-  const MAX_ROUNDS = 6;
-  const COLORS = { key_bg: '#818384', hit: '#538d4e', present: '#b59f3b', miss: '#3a3a3c'}
+  // words with duplicate letter has last coloring effective
+  const {MAX_ROUNDS, COLORS} = config;
   // TODO: extra, configurable word length, now fixed to 5
 
   // states
-  const correct_word = randomPick(PREDEFINED_WORDS);
   let round = 0;
   let game_ended = false;
   const cur_string = Array(5).fill(null);
+  const host = config.HOST;
+  let game_id = -1;
 
   const KEY_EVENT = 'w_key_pressed';
   let dummy_target = new EventTarget(); // for key pressed publishing
@@ -27,7 +36,6 @@ function App() {
   // UI components here
   function Prompt({msg}){ return ( <div className="prompt"> {msg} </div>) }
 
-  console.log(`[Cheat] correct answer: ${correct_word}`)
 
   function Board() {
 
@@ -38,22 +46,11 @@ function App() {
       const _style = {height:'50px', minWidth:'50px', lineHeight:'50px',
                       margin:'3px 0px' , border:'1px solid #3a3a3c',}
 
-      function check_Enter() {
+      function check_Enter(hl_colors) { // hightlight colors
           let q = document.querySelector(`.rect-btn[id="${_letter}"]`)
-          if ( correct_word[col] == _letter )  {
-            setColor(COLORS['hit']);
-            q.style.backgroundColor = COLORS['hit'];
-          }
-          else{
-            if (correct_word.indexOf(_letter)>=0) {
-              setColor(COLORS['present']);
-              q.style.backgroundColor = COLORS['present'];
-            }
-            else                                  {
-              setColor(COLORS['miss']);
-              q.style.backgroundColor = COLORS['miss'];
-            }
-          }
+          const c = hl_colors[col];
+          setColor(COLORS[c]);
+          q.style.backgroundColor = COLORS[c];
       }
 
       function process_input(evt) {
@@ -62,8 +59,11 @@ function App() {
         if ( row != round ) return;
 
         let {value:chr, null_col } = evt.detail;
-        console.log(`processing ${chr} at ${row},${col}, null_col=${null_col}`);
-         if (chr === 'Enter')  { check_Enter(); }
+        // console.log(`processing ${chr} at ${row},${col}, null_col=${null_col}`);
+         if (chr === 'Enter')  {
+           // TODO ensure an additional color args for check_Enter
+           check_Enter(evt.detail.colors);
+         }
          else if (chr === '←') {
            if (null_col == 0) return; // row empty
            if (null_col == -1) { null_col = 5; } // row full
@@ -111,6 +111,20 @@ function App() {
     )
   }
 
+  function update_game_state(fetched_data) {
+    // data: fetched_data from Django check_word()
+    const {is_correct, game_id:ret_game_id, colors} = fetched_data;
+
+    game_id = ret_game_id;
+
+    // For board rects to update
+    let evt = new CustomEvent(KEY_EVENT,  {detail: {value: 'Enter', colors: colors}});
+    dummy_target.dispatchEvent(evt);
+
+    if (is_correct) { game_ended = true; }
+    round += 1;
+    cur_string.fill(null);
+  }
 
   function Keyboard() {
 
@@ -125,15 +139,18 @@ function App() {
       function on_enter_pressed() {
         if (cur_string.includes(null)) { return; }
 
-          let evt = new CustomEvent(KEY_EVENT,  {detail: {value: ch}});
-          dummy_target.dispatchEvent(evt);
+        fetch(`${host}/check_ans_s`, {method:'POST',
+                                      body: JSON.stringify({game_id:game_id,
+                                      guess:cur_string.join('')
+        })}) .then( (resp) => {
+          if (resp.ok) {
+            resp.json().then( (data) => {
+              console.log(data);
+              if (data.result === 'ok') { update_game_state(data); }
+            })
+          }
+        }).catch( (error) => { console.log(error); } )
 
-          let guess = cur_string.join('');
-          console.log(`guessing ${guess} vs ${correct_word}`);
-          if (guess == correct_word) { game_ended = true; }
-
-          round += 1;
-          cur_string.fill(null);
       }
 
       function key_pressed() {
