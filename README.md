@@ -43,7 +43,7 @@
   npm run dev
   ```
 
-  Then visit http://localhost:5173 to see the demo.
+  Then visit http://127.0.0.1:5173 to see the demo.
 
 ## Versioning
 

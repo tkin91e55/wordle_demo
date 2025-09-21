@@ -1,19 +1,24 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-# csrf_exempt for testing purpose only
+from django.views.decorators.csrf import csrf_exempt # csrf_exempt for testing purpose only
 
  # if max retry reached, need to start a new game,
  # and client needs to keep track of new game_id
-MAX_ATTEMPT = 6
-PREDEFINED_WORDS = ['REACT', 'HOOKS' ,'STATE','PROPS', 'REDUX']
+MAX_ATTEMPT = 8
+PREDEFINED_WORDS = ['REACT', 'HOOKS' ,'STATE','PROPS',
+                    'REDUX', 'MODEL', 'VIEWS', 'ROUTE', 'ARRAY', 'DEBUG', 'QUERY'
+                    'MONGO', 'NODES', 'STACKS', 'QUEUE', 'GRAPH', 'TREES']
 
-# TODO after game logic correct, switch to use broswer cookie session
+def index(request):
+    cxt = {"MAX_ATTEMPT":MAX_ATTEMPT}
+    return render(request, 'singleplayer/index.html',cxt)
+
 global_gid = 0 # game_id, each play session increase by 1
 def _increment_gid():
     global global_gid
     global_gid += 1
 
+# TODO after game logic correct, switch to use broswer cookie session, but no persistence layer
 dict_game_ans = {} # no persistence layer, just for demo, keep game_id, ans, attempt
 
 def _create_new_game():

@@ -16,9 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from singleplayer.views import check_word
+from singleplayer.views import check_word, index
 
 urlpatterns = [
     # path('admin/', admin.site.urls),
-    path('check_ans_s', check_word , name='check_ans_single'),
+    path('', index, name='index'),
+    path('check_ans_s', check_word , name='check_ans_single'), # api endpoint for single player
 ]
