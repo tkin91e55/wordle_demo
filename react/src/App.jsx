@@ -38,7 +38,7 @@ function App() {
       const _style = {height:'50px', minWidth:'50px', lineHeight:'50px',
                       margin:'3px 0px' , border:'1px solid #3a3a3c',}
 
-      function check_Enter() {
+      function on_Enter() {
           let q = document.querySelector(`.rect-btn[id="${_letter}"]`)
           if ( correct_word[col] == _letter )  {
             setColor(COLORS['hit']);
@@ -63,7 +63,7 @@ function App() {
 
         let {value:chr, null_col } = evt.detail;
         console.log(`processing ${chr} at ${row},${col}, null_col=${null_col}`);
-         if (chr === 'Enter')  { check_Enter(); }
+         if (chr === 'Enter')  { on_Enter(); }
          else if (chr === '←') {
            if (null_col == 0) return; // row empty
            if (null_col == -1) { null_col = 5; } // row full
