@@ -2,7 +2,7 @@
 
   Still no using cache and database.
 
-## first version
+## First version
 
   * only two players, can manually enter a room. Or assign and create room to players, for example
     game room full.
