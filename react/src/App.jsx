@@ -1,129 +1,91 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import './App.css'
+
+// configurations
+const default_config = {
+  MAX_ROUNDS: 6,
+  COLORS: {
+            key_bg: '#818384', hit: '#538d4e',
+            present: '#b59f3b', miss: '#3a3a3c'
+          },
+  HOST: "http://127.0.0.1:8000",
+};
+const config = window.wordleConfig || default_config;
+// merge configs
+Object.keys(default_config).forEach( k =>
+  { if (config[k] === undefined) { config[k] = default_config[k]; }
+  })
+
+const {MAX_ROUNDS, COLORS} = config;
 
 function App() {
 
-  // Use global wordleConfig for app initialization
-  const default_config = {
-    MAX_ROUNDS: 6,
-    COLORS: {
-              key_bg: '#818384', hit: '#538d4e',
-              present: '#b59f3b', miss: '#3a3a3c'
-            },
-    HOST: "http://127.0.0.1:8000",
-  };
-  const config = window.wordleConfig || default_config;
-  // merge configs
-  Object.keys(default_config).forEach( k =>
-    { if (config[k] === undefined) { config[k] = default_config[k]; }
-    })
+  const [board_state, setBoardState] = useState( Array(MAX_ROUNDS).fill(null).map(
+                                                  ()=>Array(5).fill('') ) );
+  const [cursor, setCursor] = useState({row:0, col:0});
+  const [game_ended, setGameEnded] = useState(false);
+  const round = cursor.row;
+  const [host, setHost] = useState(config.HOST);
+  const [game_id, setGameId] = useState(-1);
 
-  // configurations
-  // words with duplicate letter has last coloring effective
-  const {MAX_ROUNDS, COLORS} = config;
-  // TODO: extra, configurable word length, now fixed to 5
+  // const [key_colors, board_colors] = useMemo( () => computeColors(board_state), [round]);
+  const [key_colors, board_colors] = [{}, Array(MAX_ROUNDS).fill().map(()=>Array(5).fill(null) )];
 
-  // states
-  let round = 0;
-  let game_ended = false;
-  const cur_string = Array(5).fill(null);
-  const host = config.HOST;
-  let game_id = -1;
+  function on_input(chr) {
+    // MAIN LOGIC of the game
+    if (game_ended) return;
+    // console.log(`processing ${chr}`);
+    console.log(`processing ${board_state}`);
+     if (chr === 'Enter')  { check_answer()  }
+     else if (chr === '←') { remove_letter() }
+     else                  { add_letter(chr) }
+  }
 
-  const KEY_EVENT = 'w_key_pressed';
-  let dummy_target = new EventTarget(); // for key pressed publishing
-
-  // UI components here
-  function Prompt({msg}){ return ( <div className="prompt"> {msg} </div>) }
-
-
-  function Board() {
-
-    function Rect ({row, col}){
-      let [ letter, setLetter ] = useState('');
-      let _letter = '';
-      let [ color, setColor ] = useState('');
-      const _style = {height:'50px', minWidth:'50px', lineHeight:'50px',
-                      margin:'3px 0px' , border:'1px solid #3a3a3c',}
-
-      function check_Enter(hl_colors) { // hightlight colors
-          let q = document.querySelector(`.rect-btn[id="${_letter}"]`)
-          const c = hl_colors[col];
-          setColor(COLORS[c]);
-          q.style.backgroundColor = COLORS[c];
-      }
-
-      function process_input(evt) {
-        // MAIN LOGIC of the game
-        if (game_ended) return;
-        if ( row != round ) return;
-
-        let {value:chr, null_col } = evt.detail;
-        // console.log(`processing ${chr} at ${row},${col}, null_col=${null_col}`);
-         if (chr === 'Enter')  {
-           // TODO ensure an additional color args for check_Enter
-           check_Enter(evt.detail.colors);
-         }
-         else if (chr === '←') {
-           if (null_col == 0) return; // row empty
-           if (null_col == -1) { null_col = 5; } // row full
-           if (col != null_col-1) return;
-           setLetter(''); _letter = '';
-           cur_string[null_col-1] = null;
-         }
-         else {
-           if (null_col == -1) return; // row full
-           if (col != null_col) return; // only current col can be filled
-           // console.log(`processing ${chr} at ${row},${col}, letter: ${letter}`);
-
-           setLetter(chr); _letter = chr;
-           cur_string[col] = chr;
-         }
-
-      }
-
-      useEffect(() => {
-        dummy_target.addEventListener(KEY_EVENT, process_input);
-        return () => { dummy_target.removeEventListener(KEY_EVENT, process_input); };
-      }, []);
-
-      return ( <span id={col} className="rect-board"
-                              style={{..._style, backgroundColor: color}}>{letter}</span>)
+  function add_letter(chr){
+    if (cursor.col<5){
+      let new_board = structuredClone(board_state);
+      new_board[round][cursor.col] = chr;
+      setBoardState(new_board);
+      setCursor({row:round, col:cursor.col+1});
     }
+  }
 
-    function RenderRects() {
-      const rects = [];
-      for (let r=0; r<MAX_ROUNDS; r++) {
-        const row_rects = [];
-        for (let c=0; c<5; c++) {
-          row_rects.push( <Rect key={`${r}-${c}`} row={r} col={c} /> )
-        }
-        const _sty = {display:'flex', justifyContent:'center'}
-        rects.push(<div key={r} className="board-row" style={_sty}>{row_rects}</div> )
-      }
-      return rects;
+  function remove_letter(){
+    if (cursor.col>0){
+      let new_board = structuredClone(board_state);
+      new_board[round][cursor.col-1] = '';
+      setBoardState(new_board);
+      setCursor({row:round, col:cursor.col-1});
     }
-
-    return (
-      <div className="board" style={{marginBottom:'25%'}}>
-        <RenderRects />
-      </div>
-    )
   }
 
   function update_game_state(fetched_data) {
-    // data: fetched_data from Django check_word()
     const {is_correct, game_id:ret_game_id, colors} = fetched_data;
 
-    game_id = ret_game_id;
+    setGameId(ret_game_id);
 
-    // For board rects to update
-    let evt = new CustomEvent(KEY_EVENT,  {detail: {value: 'Enter', colors: colors}});
-    dummy_target.dispatchEvent(evt);
+    // if (is_correct || round == MAX_ROUNDS ) {
+    //   setGameEnded(true);
+    // }
+    // setCursor({row: round+1, col:0});
+  }
 
-    if (is_correct) { game_ended = true; }
-    round += 1;
-    cur_string.fill(null);
+  function check_answer() {
+    if (cursor.col<5) return; // not enough letters
+    fetch(`${host}/check_ans_s`, {method:'POST',
+                                         body: JSON.stringify({game_id:game_id,
+                                         guess:board_state[round].join('')
+           })}) .then( (resp) => {
+             if (resp.ok) {
+               resp.json().then( (data) => {
+                 console.log(data);
+                 if (data.result === 'ok') { update_game_state(data); }
+               })
+             }
+           }).catch( (error) => { console.log(error); } )
+  }
+
+  function useData() {
   }
 
   function Keyboard() {
@@ -132,71 +94,62 @@ function App() {
                         ['A','S','D','F','G','H','J','K','L'],
                         ['Enter','Z','X','C','V','B','N','M','←']]
 
-    function BtnRect({ch, bg_color}) {
-
-      const _style = {height:'50px', minWidth:'50px', margin:'2px'}
-
-      function on_enter_pressed() {
-        if (cur_string.includes(null)) { return; }
-
-        fetch(`${host}/check_ans_s`, {method:'POST',
-                                      body: JSON.stringify({game_id:game_id,
-                                      guess:cur_string.join('')
-        })}) .then( (resp) => {
-          if (resp.ok) {
-            resp.json().then( (data) => {
-              console.log(data);
-              if (data.result === 'ok') { update_game_state(data); }
-            })
-          }
-        }).catch( (error) => { console.log(error); } )
-
-      }
-
-      function key_pressed() {
-        if (ch == "Enter") {
-          on_enter_pressed();
-        } else {
-          const null_col = cur_string.indexOf(null)
-          let evt = new CustomEvent(KEY_EVENT,  {detail: {value: ch, null_col: null_col}});
-          dummy_target.dispatchEvent(evt);
-        }
-      }
-
-      return (
-        <button className="rect-btn" id={ch} style= {{..._style, backgroundColor: bg_color}}
-                onClick={key_pressed} value={ch} >
-          {ch}
-        </button>)
-    }
-
     function RenderButtons() {
-       // TODO in app style css
-       const _style = { display:'flex', justifyContent:'center'};
-       return keys_onboard.map( (row, idx) => (
-            <div key={idx} id={idx} className="keyboard-row" style={_style} >
-              { row.map( (key) =>
-                ( <BtnRect key={key} ch={key} bg_color={COLORS['key_bg']} />))
+       const row_style = { display:'flex', justifyContent:'center'};
+       return keys_onboard.map( (row,idx) => (
+            <div key={idx} className="keyboard-row" style={row_style} >
+              { row.map( (chr) =>
+                ( <BtnRect key={chr} chr={chr} color={key_colors[chr]} cb={on_input} />))
               }
             </div>
           ))
     }
-
-    return (
-      <div className="keyboard">
-        <RenderButtons />
-      </div>
-    )
+    return <div className="keyboard"> <RenderButtons /> </div>
   }
 
   return (
     <>
       <div className="container">
-        <Board />
+        <Board states={board_state} colors={board_colors}/>
         <Keyboard />
       </div>
     </>
   )
+}
+
+function Board({states,colors}) {
+
+  function RenderRects() {
+    return states.map((arr,r) => {
+      const _sty = {display:'flex', justifyContent:'center'}
+      return (
+        <div key={r} className="board-row" style={_sty}>
+          { arr.map( (ch,c) => ( <Rect key={c} chr={ch} color={colors[r][c]} /> ) ) }
+        </div>
+      )
+    })
+  }
+
+  return <div className="board" style={{marginBottom:'25%'}}> <RenderRects /> </div>
+}
+
+function Rect ({chr, color,}){
+  const _style = {height:'50px', minWidth:'50px', lineHeight:'50px',
+                  margin:'3px 0px' , border:'1px solid #3a3a3c',}
+  return ( <span className="rect-board"
+                 style={{..._style, backgroundColor: color}}>{chr}</span>)
+}
+
+function BtnRect({chr, color, cb}) {
+  const bg_color = color || COLORS['key_bg'];
+  const _style = {height:'50px', minWidth:'50px', margin:'2px'}
+
+  return (
+    <button className="rect-btn" id={chr}
+            style={{..._style, backgroundColor: bg_color,}}
+            onClick={(e)=>{cb(e.target.value)}}
+            value={chr} > {chr}
+    </button>)
 }
 
 export default App
