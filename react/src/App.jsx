@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import './App.css'
 
 function randomPick(array) {
@@ -6,111 +6,86 @@ function randomPick(array) {
   return array[choice];
 }
 
+// configurations
+// words with duplicate letter has undeterministic coloring
+const PREDEFINED_WORDS = ['REACT', 'HOOKS' ,'STATE','PROPS', 'REDUX'];
+const MAX_ROUNDS = 6;
+const COLORS = { key_bg: '#818384', hit: '#538d4e', present: '#b59f3b', miss: '#3a3a3c'}
+const correct_word = randomPick(PREDEFINED_WORDS);
+
+console.log(`[Cheat] correct answer: ${correct_word}`)
+
 function App() {
 
-  // configurations
-  // words with duplicate letter has undeterministic coloring
-  const PREDEFINED_WORDS = ['REACT', 'HOOKS' ,'STATE','PROPS', 'REDUX'];
-  const MAX_ROUNDS = 6;
-  const COLORS = { key_bg: '#818384', hit: '#538d4e', present: '#b59f3b', miss: '#3a3a3c'}
-  // TODO: extra, configurable word length, now fixed to 5
+  const [board_state, setBoardState] = useState( Array(MAX_ROUNDS).fill(null).map(
+                                                  ()=>Array(5).fill('') ) );
+  const [cursor, setCursor] = useState({row:0, col:0});
+  const [game_ended, setGameEnded] = useState(false);
+  const round = cursor.row;
 
-  // states
-  const correct_word = randomPick(PREDEFINED_WORDS);
-  let round = 0;
-  let game_ended = false;
-  const cur_string = Array(5).fill(null);
+  const [key_colors, board_colors] = useMemo( () => ComputeColor(board_state), [round]);
 
-  const KEY_EVENT = 'w_key_pressed';
-  let dummy_target = new EventTarget(); // for key pressed publishing
-
-  // UI components here
-  function Prompt({msg}){ return ( <div className="prompt"> {msg} </div>) }
-
-  console.log(`[Cheat] correct answer: ${correct_word}`)
-
-  function Board() {
-
-    function Rect ({row, col}){
-      let [ letter, setLetter ] = useState('');
-      let _letter = '';
-      let [ color, setColor ] = useState('');
-      const _style = {height:'50px', minWidth:'50px', lineHeight:'50px',
-                      margin:'3px 0px' , border:'1px solid #3a3a3c',}
-
-      function on_Enter() {
-          let q = document.querySelector(`.rect-btn[id="${_letter}"]`)
-          if ( correct_word[col] == _letter )  {
-            setColor(COLORS['hit']);
-            q.style.backgroundColor = COLORS['hit'];
-          }
-          else{
-            if (correct_word.indexOf(_letter)>=0) {
-              setColor(COLORS['present']);
-              q.style.backgroundColor = COLORS['present'];
-            }
-            else                                  {
-              setColor(COLORS['miss']);
-              q.style.backgroundColor = COLORS['miss'];
-            }
-          }
-      }
-
-      function process_input(evt) {
-        // MAIN LOGIC of the game
-        if (game_ended) return;
-        if ( row != round ) return;
-
-        let {value:chr, null_col } = evt.detail;
-        console.log(`processing ${chr} at ${row},${col}, null_col=${null_col}`);
-         if (chr === 'Enter')  { on_Enter(); }
-         else if (chr === '←') {
-           if (null_col == 0) return; // row empty
-           if (null_col == -1) { null_col = 5; } // row full
-           if (col != null_col-1) return;
-           setLetter(''); _letter = '';
-           cur_string[null_col-1] = null;
-         }
-         else {
-           if (null_col == -1) return; // row full
-           if (col != null_col) return; // only current col can be filled
-           // console.log(`processing ${chr} at ${row},${col}, letter: ${letter}`);
-
-           setLetter(chr); _letter = chr;
-           cur_string[col] = chr;
-         }
-
-      }
-
-      useEffect(() => {
-        dummy_target.addEventListener(KEY_EVENT, process_input);
-        return () => { dummy_target.removeEventListener(KEY_EVENT, process_input); };
-      }, []);
-
-      return ( <span id={col} className="rect-board"
-                              style={{..._style, backgroundColor: color}}>{letter}</span>)
-    }
-
-    function RenderRects() {
-      const rects = [];
-      for (let r=0; r<MAX_ROUNDS; r++) {
-        const row_rects = [];
-        for (let c=0; c<5; c++) {
-          row_rects.push( <Rect key={`${r}-${c}`} row={r} col={c} /> )
+  function ComputeColor(_state) {
+    const _key_colors = {}
+    const _board_colors = Array(MAX_ROUNDS).fill().map(()=>Array(5).fill(null) );
+    if (round==0) {return [_key_colors, _board_colors];}
+    for (let r=0; r<round; r++) {
+      for (let c=0; c<5; c++) {
+        const chr = _state[r][c];
+        if (correct_word[c] == chr) {
+          _board_colors[r][c] = COLORS['hit'];
+          _key_colors[chr] = COLORS['hit'];
         }
-        const _sty = {display:'flex', justifyContent:'center'}
-        rects.push(<div key={r} className="board-row" style={_sty}>{row_rects}</div> )
+        else{
+          if (correct_word.indexOf(chr)>=0) {
+            _board_colors[r][c] = COLORS['present'];
+            _key_colors[chr] = COLORS['present'];
+          } else {
+            _board_colors[r][c] = COLORS['miss'];
+            _key_colors[chr] = COLORS['miss'];
+          }
+        }
       }
-      return rects;
     }
-
-    return (
-      <div className="board" style={{marginBottom:'25%'}}>
-        <RenderRects />
-      </div>
-    )
+    return [_key_colors, _board_colors];
   }
 
+  function on_input(chr) {
+    // MAIN LOGIC of the game
+    if (game_ended) return;
+    // console.log(`processing ${chr}`);
+    console.log(`processing ${board_state}`);
+     if (chr === 'Enter')  { check_answer()  }
+     else if (chr === '←') { remove_letter() }
+     else                  { add_letter(chr) }
+  }
+
+  function add_letter(chr){
+    if (cursor.col<5){
+      let new_board = structuredClone(board_state);
+      new_board[round][cursor.col] = chr;
+      setBoardState(new_board);
+      setCursor({row:round, col:cursor.col+1});
+    }
+  }
+
+  function remove_letter(){
+    if (cursor.col>0){
+      let new_board = structuredClone(board_state);
+      new_board[round][cursor.col-1] = '';
+      setBoardState(new_board);
+      setCursor({row:round, col:cursor.col-1});
+    }
+  }
+
+  function check_answer() {
+    if (cursor.col<5) return; // not enough letters
+    const is_correct = board_state[round].join('') === correct_word;
+    if (is_correct || round == MAX_ROUNDS ) {
+      setGameEnded(true);
+    }
+    setCursor({row: round+1, col:0});
+  }
 
   function Keyboard() {
 
@@ -118,68 +93,62 @@ function App() {
                         ['A','S','D','F','G','H','J','K','L'],
                         ['Enter','Z','X','C','V','B','N','M','←']]
 
-    function BtnRect({ch, bg_color}) {
-
-      const _style = {height:'50px', minWidth:'50px', margin:'2px'}
-
-      function on_enter_pressed() {
-        if (cur_string.includes(null)) { return; }
-
-          let evt = new CustomEvent(KEY_EVENT,  {detail: {value: ch}});
-          dummy_target.dispatchEvent(evt);
-
-          let guess = cur_string.join('');
-          console.log(`guessing ${guess} vs ${correct_word}`);
-          if (guess == correct_word) { game_ended = true; }
-
-          round += 1;
-          cur_string.fill(null);
-      }
-
-      function key_pressed() {
-        if (ch == "Enter") {
-          on_enter_pressed();
-        } else {
-          const null_col = cur_string.indexOf(null)
-          let evt = new CustomEvent(KEY_EVENT,  {detail: {value: ch, null_col: null_col}});
-          dummy_target.dispatchEvent(evt);
-        }
-      }
-
-      return (
-        <button className="rect-btn" id={ch} style= {{..._style, backgroundColor: bg_color}}
-                onClick={key_pressed} value={ch} >
-          {ch}
-        </button>)
-    }
-
     function RenderButtons() {
-       // TODO in app style css
-       const _style = { display:'flex', justifyContent:'center'};
-       return keys_onboard.map( (row, idx) => (
-            <div key={idx} id={idx} className="keyboard-row" style={_style} >
-              { row.map( (key) =>
-                ( <BtnRect key={key} ch={key} bg_color={COLORS['key_bg']} />))
+       const row_style = { display:'flex', justifyContent:'center'};
+       return keys_onboard.map( (row,idx) => (
+            <div key={idx} className="keyboard-row" style={row_style} >
+              { row.map( (chr) =>
+                ( <BtnRect key={chr} chr={chr} color={key_colors[chr]} cb={on_input} />))
               }
             </div>
           ))
     }
-
-    return (
-      <div className="keyboard">
-        <RenderButtons />
-      </div>
-    )
+    return <div className="keyboard"> <RenderButtons /> </div>
   }
 
   return (
     <>
       <div className="container">
-        <Board />
+        <Board states={board_state} colors={board_colors}/>
         <Keyboard />
       </div>
     </>
   )
+}
+
+function Board({states,colors}) {
+
+  function RenderRects() {
+    return states.map((arr,r) => {
+      const _sty = {display:'flex', justifyContent:'center'}
+      return (
+        <div key={r} className="board-row" style={_sty}>
+          { arr.map( (ch,c) => ( <Rect key={c} chr={ch} color={colors[r][c]} /> ) ) }
+        </div>
+      )
+    })
+  }
+
+  return <div className="board" style={{marginBottom:'25%'}}> <RenderRects /> </div>
+}
+
+function Rect ({chr, color,}){
+  const _style = {height:'50px', minWidth:'50px', lineHeight:'50px',
+                  margin:'3px 0px' , border:'1px solid #3a3a3c',}
+  return ( <span className="rect-board"
+                 style={{..._style, backgroundColor: color}}>{chr}</span>)
+}
+
+function BtnRect({chr, color, cb}) {
+  const bg_color = color || COLORS['key_bg'];
+  const _style = {height:'50px', minWidth:'50px', margin:'2px'}
+
+  return (
+    <button className="rect-btn" id={chr}
+            style={{..._style, backgroundColor: bg_color,}}
+            onClick={(e)=>{cb(e.target.value)}}
+            value={chr} > {chr}
+    </button>)
 }
 
 export default App
