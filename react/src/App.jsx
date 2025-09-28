@@ -28,14 +28,15 @@ function App() {
   const [host, setHost] = useState(config.HOST);
   const [game_id, setGameId] = useState(-1);
 
-  // const [key_colors, board_colors] = useMemo( () => computeColors(board_state), [round]);
-  const [key_colors, board_colors] = [{}, Array(MAX_ROUNDS).fill().map(()=>Array(5).fill(null) )];
+  // since cannot deduced locally
+  const [key_colors, setKeyColors]     =  useState( {} );
+  const [board_colors, setBoardColors] =  useState( Array(MAX_ROUNDS).fill().
+                                                    map(()=>Array(5).fill(null) ) );
 
   function on_input(chr) {
     // MAIN LOGIC of the game
     if (game_ended) return;
-    // console.log(`processing ${chr}`);
-    console.log(`processing ${board_state}`);
+    // console.log(`processing ${board_state}`);
      if (chr === 'Enter')  { check_answer()  }
      else if (chr === '←') { remove_letter() }
      else                  { add_letter(chr) }
@@ -61,31 +62,40 @@ function App() {
 
   function update_game_state(fetched_data) {
     const {is_correct, game_id:ret_game_id, colors} = fetched_data;
-
     setGameId(ret_game_id);
-
-    // if (is_correct || round == MAX_ROUNDS ) {
-    //   setGameEnded(true);
-    // }
-    // setCursor({row: round+1, col:0});
+    update_colors(colors);
+    if (is_correct || round == MAX_ROUNDS ) { setGameEnded(true); }
+    setCursor({row: round+1, col:0});
   }
 
+  function update_colors(_colors) {
+    const _board_colors = structuredClone(board_colors);
+    const _key_colors = structuredClone(key_colors);
+    _colors.forEach( (clr, col) => {
+      _board_colors[round][col] = COLORS[clr];
+      _key_colors[board_state[round][col]] = COLORS[clr];
+    })
+    setBoardColors(_board_colors);
+    setKeyColors(_key_colors);
+  }
+
+  let ignore = false
   function check_answer() {
     if (cursor.col<5) return; // not enough letters
+    if (ignore) return;
+    ignore = true;
     fetch(`${host}/check_ans_s`, {method:'POST',
-                                         body: JSON.stringify({game_id:game_id,
-                                         guess:board_state[round].join('')
-           })}) .then( (resp) => {
+                                  body: JSON.stringify({game_id:game_id,
+                                         guess:board_state[round].join('')}
+           )}).then( (resp) => {
              if (resp.ok) {
                resp.json().then( (data) => {
                  console.log(data);
                  if (data.result === 'ok') { update_game_state(data); }
                })
              }
-           }).catch( (error) => { console.log(error); } )
-  }
-
-  function useData() {
+           }).catch( (error) => { console.log(error); }
+           ).finally( () => { ignore = false; } );
   }
 
   function Keyboard() {
