@@ -26,6 +26,7 @@ function App() {
 
   const [roomState, setRoomState] = useState('waiting'); // waiting, playing, disconnected, ended
   const [isMyTurn, setIsMyTurn] = useState(false);
+  const [milliLeft, setMilliLeft] = useState(0);
   const [history, setHistory] = useState('');
   const posting = useRef(false); // ignore inputs, and repeated submit
   const [game_ended, setGameEnded] = useState(false);
@@ -68,10 +69,11 @@ function App() {
   }
 
   function syncWith(data) {
-    const {state,is_over,is_your_round,history:hist,winner} = data;
+    const {state,is_over,is_your_round,history:hist,winner, millisLeft} = data;
     setRoomState(state);
     setIsMyTurn(is_your_round);
     setHasWon(winner === playerID);
+    setMilliLeft(millisLeft);
     if (history != hist) {
         setHistory(hist);
     }
@@ -92,7 +94,7 @@ function App() {
 
     }, 1000);
     return () => clearInterval(interval);
-  })
+  },[])
 
   function historyTo(_type="board"){
     _type = (_type=='board' ? 0 : 1)
@@ -125,6 +127,35 @@ function App() {
         <div> My Turn  : {isMyTurn ? 'yes' : 'no'} </div>
         <div> Game Over: {game_ended ? 'yes' : 'no'} </div>
         <div> Has Won  : {hasWon ? 'yes' : 'no'} </div>
+        <Timer milliLeft={milliLeft} isMyTurn={isMyTurn} />
+      </div>
+    </>
+  )
+}
+
+function Timer({milliLeft, isMyTurn}) {
+  const [display, setDisplay] = useState(milliLeft);
+  if (Math.abs(display-milliLeft) > 1000) {
+    setDisplay(milliLeft);
+  }
+  const interval = 150;
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setDisplay(Math.max(0, display - interval));
+      if (display <= 0) clearInterval(timer);
+    }, interval);
+    return () => clearInterval(timer);
+  })
+
+  const value =  ((display/1000) % 60).toFixed(2)
+  return (
+    <>
+      <div> Time left: {value} </div>
+      <div style={{backgroundColor:"transparent", width:'500px', height:'30px',
+                   border:`3px solid ${isMyTurn ? 'green' : 'red'}`}}>
+         <div style={{backgroundColor:"blue", height:'100%',
+                      width: `${value/20 * 100}%`}}> </div>
       </div>
     </>
   )

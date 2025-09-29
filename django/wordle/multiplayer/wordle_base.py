@@ -1,6 +1,7 @@
 # This is common logic for both single and multiplayer
 # TODO The goal is to refactor the common logic to here, so both single and multiplayer can use it
 from random import choice
+from datetime import datetime, timedelta
 
 RAIDX = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 GLOBAL_ROOM_HANDLER = dict()
@@ -19,13 +20,26 @@ class Game:
                         'VIEWS', 'ROUTE', 'ARRAY', 'DEBUG', 'QUERY' 'MONGO',
                         'NODES', 'STACK', 'QUEUE', 'GRAPH', 'BYTES', 'RDBMS'
                         'DEVOP', 'BUILD', 'CLOUD' ]
+    INTERVAL_ROUND = 20000 # ms
 
     def __init__(self):
         self.round = 0
+        self.submits = 0 # different from `round`,
         self.answer = choice(Game.PREDEFINED_WORDS)
         self.bingo = False # whether someone has won
         print(f"new game answer {self.answer}")
         self.history = "" # encoded with guess:colors,guess2:colors2...
+        self.next_round(init=True)
+
+    def next_round(self,init=False):
+        self.next_round_time = datetime.now() + timedelta(milliseconds=Game.INTERVAL_ROUND)
+        if self.is_over(): return
+        if not init:
+            self.round += 1
+
+    def millis_left(self):
+        if self.is_over(): return 0
+        return int((self.next_round_time - datetime.now()).total_seconds()*1000)
 
     def check_answer(self, guess)-> tuple|None:
         """
@@ -47,12 +61,14 @@ class Game:
         self.history += f"{guess}:{''.join([c[0] for c in color_hl])},"
 
         if is_correct: self.bingo = True
-        else:          self.round += 1
+        else:
+            self.next_round()
+            self.submits += 1
 
         return is_correct, color_hl
 
     def is_over(self):
-        return self.round >= Game.MAX_ATTEMPT or self.bingo
+        return self.submits >= Game.MAX_ATTEMPT or self.bingo
 
 from enum import Enum
 class GameRoom:
@@ -95,13 +111,20 @@ class GameRoom:
         (game state, current round, is game over, is your round, winner)
         """
         if player_token not in self.players: return None
-        r_state, r_over = self.state, self._game.is_over()
-        r_history = self._game.history.strip(',')
+        game = self._game
+
+        r_millis = game.millis_left()
+        if r_millis <= 0:
+            game.next_round()
+            r_millis = game.millis_left()
+
+        r_state, r_over = self.state, game.is_over()
+        r_history = game.history.strip(',')
         is_your_round = self.is_players_turn(player_token)
         r_state = r_state.name.lower()
         return dict(zip(
-                   ("state", "is_over", "is_your_round", "history", "winner"),
-                   (r_state, r_over, is_your_round, r_history, self._winner)))
+                   ("state", "is_over", "is_your_round", "history", "winner","millisLeft"),
+                   (r_state, r_over, is_your_round, r_history, self._winner, r_millis)))
 
     def submit_(self,guess,player_token,**kwargs)-> dict|None:
         if player_token not in self.players:       return None
