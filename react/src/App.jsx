@@ -55,6 +55,7 @@ function App() {
             let data = await resp.json()
             if (data.result === 'ok') {
               posting.current = false;
+              syncWith(data);
               return data
             }
             posting.current = false;
@@ -65,18 +66,22 @@ function App() {
     }
   }
 
+  function syncWith(data) {
+    const {state,is_over,is_your_round,history:hist,winner} = data;
+    setRoomState(state);
+    setIsMyTurn(is_your_round);
+    setHasWon(winner === playerID);
+    if (history != hist) {
+        setHistory(hist);
+    }
+    setGameEnded(is_over);
+  }
+
   useEffect(()=>{
     const interval = setInterval(() => {
       function onSync(data) {
-        // console.log(data);
-        const {state,is_over,is_your_round,history:hist,winner} = data;
-        setRoomState(state);
-        setIsMyTurn(is_your_round);
-        setHasWon(winner === playerID);
-        if (history != hist) {
-            setHistory(hist);
-        }
-        setGameEnded(is_over);
+        console.log(data);
+        syncWith(data);
       }
 
       // https://javascript.info/task/async-from-regular

@@ -14,7 +14,7 @@ def generate_random_token(existing_tokens:set,length=6):
 
 class Game:
     # TODO implement persistence logic, player login functions etc....
-    MAX_ATTEMPT = 3
+    MAX_ATTEMPT = 6
     PREDEFINED_WORDS = ['REACT', 'HOOKS' ,'STATE','PROPS', 'REDUX', 'MODEL',
                         'VIEWS', 'ROUTE', 'ARRAY', 'DEBUG', 'QUERY' 'MONGO',
                         'NODES', 'STACK', 'QUEUE', 'GRAPH', 'BYTES', 'RDBMS'
@@ -112,7 +112,7 @@ class GameRoom:
         if is_correct:
             self.state = GameRoom.STATE.FINISHED
             self._winner = player_token
-        return dict(zip(('is_correct','colors'),(is_correct,colors)))
+        return self.poll(player_token)
 
     def check_player_disconnected(self):
         # TODO do when being polled
