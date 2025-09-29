@@ -1,14 +1,13 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import './App.css'
+import Panel from './Components.jsx'
 
 // configurations
 const default_config = {
-  MAX_ROUNDS: 6,
-  COLORS: {
-            key_bg: '#818384', hit: '#538d4e',
-            present: '#b59f3b', miss: '#3a3a3c'
-          },
   HOST: "http://127.0.0.1:8000",
+  ROOM_ID: 'abcdef',
+  PLAYER_ID: '123456',
+  MAX_ROUNDS: 6,
 };
 const config = window.wordleConfig || default_config;
 // merge configs
@@ -16,150 +15,127 @@ Object.keys(default_config).forEach( k =>
   { if (config[k] === undefined) { config[k] = default_config[k]; }
   })
 
-const {MAX_ROUNDS, COLORS} = config;
+const {HOST, ROOM_ID, PLAYER_ID, MAX_ROUNDS} = config;
 
 function App() {
 
-  const [board_state, setBoardState] = useState( Array(MAX_ROUNDS).fill(null).map(
-                                                  ()=>Array(5).fill('') ) );
-  const [cursor, setCursor] = useState({row:0, col:0});
+  const [host, setHost] = useState(HOST); // allow to change server
+  const [game_id, setGameId] = useState(ROOM_ID);
+  const [playerID, setPlayerID] = useState(PLAYER_ID);
+
+  const [roomState, setRoomState] = useState('waiting'); // waiting, playing, disconnected, ended
+  const [isMyTurn, setIsMyTurn] = useState(false);
+  const [history, setHistory] = useState('');
+  const posting = useRef(false); // ignore inputs, and repeated submit
   const [game_ended, setGameEnded] = useState(false);
-  const round = cursor.row;
-  const [host, setHost] = useState(config.HOST);
-  const [game_id, setGameId] = useState(-1);
+  const [hasWon, setHasWon] = useState(false);
 
-  // since cannot deduced locally
-  const [key_colors, setKeyColors]     =  useState( {} );
-  const [board_colors, setBoardColors] =  useState( Array(MAX_ROUNDS).fill().
-                                                    map(()=>Array(5).fill(null) ) );
-
-  function on_input(chr) {
-    // MAIN LOGIC of the game
-    if (game_ended) return;
-    // console.log(`processing ${board_state}`);
-     if (chr === 'Enter')  { check_answer()  }
-     else if (chr === '←') { remove_letter() }
-     else                  { add_letter(chr) }
+  async function fetchGameState() {
+    const API_URL = `${host}/task4/api/sync/${game_id}?player=${playerID}`;
+    const response = await fetch(API_URL);
+    if (response.ok) {
+        let data = await response.json()
+        return data
+    }
+    throw new Error('unable to sync');
   }
 
-  function add_letter(chr){
-    if (cursor.col<5){
-      let new_board = structuredClone(board_state);
-      new_board[round][cursor.col] = chr;
-      setBoardState(new_board);
-      setCursor({row:round, col:cursor.col+1});
+  async function submitGuess(guess) {
+    if (posting.current) return;
+    posting.current = true;
+    console.log(`submitting ${guess}`);
+    const API_URL = `${host}/task4/api/check_ans_m/`;
+    try {
+        const resp = await fetch(API_URL,
+            {method:'POST',
+             body: JSON.stringify(
+                     {room_id:game_id, guess:guess, token:playerID }
+             )})
+        if (resp.ok) {
+            let data = await resp.json()
+            if (data.result === 'ok') {
+              posting.current = false;
+              return data
+            }
+            posting.current = false;
+        }
+    } catch(e) {
+        posting.current = false;
+        console.error(`abnormal submit: ${e}`);
     }
   }
 
-  function remove_letter(){
-    if (cursor.col>0){
-      let new_board = structuredClone(board_state);
-      new_board[round][cursor.col-1] = '';
-      setBoardState(new_board);
-      setCursor({row:round, col:cursor.col-1});
+  useEffect(()=>{
+    const interval = setInterval(() => {
+      function onSync(data) {
+        // console.log(data);
+        const {state,is_over,is_your_round,history:hist,winner} = data;
+        setRoomState(state);
+        setIsMyTurn(is_your_round);
+        setHasWon(winner === playerID);
+        if (history != hist) {
+            setHistory(hist);
+        }
+        setGameEnded(is_over);
+      }
+
+      // https://javascript.info/task/async-from-regular
+      // let data = fetchGameState() // MyMistake: very common problem to newcomers
+      fetchGameState(
+      ).then((data)=> { onSync(data); }
+      ).catch((e)=>{ console.log(e); })
+
+    }, 2500);
+    return () => clearInterval(interval);
+  })
+
+  function historyTo(_type="board"){
+    _type = (_type=='board' ? 0 : 1)
+    const ret = Array(MAX_ROUNDS).fill().map(()=>Array(5).fill(''));
+    if (!history) return ret;
+    const str2Arr = history.split(',')
+          .map((ss) => ss.split(':')[_type]).map(x=>Array.from(x))
+    for (let r=0; r<str2Arr.length; r++) {
+      for (let c=0; c<str2Arr[r].length; c++) {
+        ret[r][c] = str2Arr[r][c];
+      }
     }
+    return ret
   }
 
-  function update_game_state(fetched_data) {
-    const {is_correct, game_id:ret_game_id, colors} = fetched_data;
-    setGameId(ret_game_id);
-    update_colors(colors);
-    if (is_correct || round == MAX_ROUNDS ) { setGameEnded(true); }
-    setCursor({row: round+1, col:0});
-  }
-
-  function update_colors(_colors) {
-    const _board_colors = structuredClone(board_colors);
-    const _key_colors = structuredClone(key_colors);
-    _colors.forEach( (clr, col) => {
-      _board_colors[round][col] = COLORS[clr];
-      _key_colors[board_state[round][col]] = COLORS[clr];
-    })
-    setBoardColors(_board_colors);
-    setKeyColors(_key_colors);
-  }
-
-  let ignore = false
-  function check_answer() {
-    if (cursor.col<5) return; // not enough letters
-    if (ignore) return;
-    ignore = true;
-    fetch(`${host}/check_ans_s`, {method:'POST',
-                                  body: JSON.stringify({game_id:game_id,
-                                         guess:board_state[round].join('')}
-           )}).then( (resp) => {
-             if (resp.ok) {
-               resp.json().then( (data) => {
-                 console.log(data);
-                 if (data.result === 'ok') { update_game_state(data); }
-               })
-             }
-           }).catch( (error) => { console.log(error); }
-           ).finally( () => { ignore = false; } );
-  }
-
-  function Keyboard() {
-
-    const keys_onboard = [['Q','W','E','R','T','Y','U','I','O','P'],
-                        ['A','S','D','F','G','H','J','K','L'],
-                        ['Enter','Z','X','C','V','B','N','M','←']]
-
-    function RenderButtons() {
-       const row_style = { display:'flex', justifyContent:'center'};
-       return keys_onboard.map( (row,idx) => (
-            <div key={idx} className="keyboard-row" style={row_style} >
-              { row.map( (chr) =>
-                ( <BtnRect key={chr} chr={chr} color={key_colors[chr]} cb={on_input} />))
-              }
-            </div>
-          ))
-    }
-    return <div className="keyboard"> <RenderButtons /> </div>
-  }
+  const board_state = useMemo( () => historyTo('board'), [history] );
+  const board_colors = useMemo( () => historyTo('color'), [history] );
+  const key_colors = ComputeKeyColors(board_state,board_colors);
+  const ignoreInput = posting.current || game_ended || !isMyTurn;
+  const _states = { board_state, board_colors, key_colors };
 
   return (
     <>
       <div className="container">
-        <Board states={board_state} colors={board_colors}/>
-        <Keyboard />
+        <Panel key={history} submit_handler={submitGuess}
+              _states={_states} ignore_input={ignoreInput} />
+        <div> Room ID  : {game_id} </div>
+        <div> Player ID: {playerID} </div>
+        <div> State    : {roomState} </div>
+        <div> My Turn  : {isMyTurn ? 'yes' : 'no'} </div>
+        <div> Game Over: {game_ended ? 'yes' : 'no'} </div>
+        <div> Has Won  : {hasWon ? 'yes' : 'no'} </div>
       </div>
     </>
   )
 }
 
-function Board({states,colors}) {
-
-  function RenderRects() {
-    return states.map((arr,r) => {
-      const _sty = {display:'flex', justifyContent:'center'}
-      return (
-        <div key={r} className="board-row" style={_sty}>
-          { arr.map( (ch,c) => ( <Rect key={c} chr={ch} color={colors[r][c]} /> ) ) }
-        </div>
-      )
-    })
-  }
-
-  return <div className="board" style={{marginBottom:'25%'}}> <RenderRects /> </div>
-}
-
-function Rect ({chr, color,}){
-  const _style = {height:'50px', minWidth:'50px', lineHeight:'50px',
-                  margin:'3px 0px' , border:'1px solid #3a3a3c',}
-  return ( <span className="rect-board"
-                 style={{..._style, backgroundColor: color}}>{chr}</span>)
-}
-
-function BtnRect({chr, color, cb}) {
-  const bg_color = color || COLORS['key_bg'];
-  const _style = {height:'50px', minWidth:'50px', margin:'2px'}
-
-  return (
-    <button className="rect-btn" id={chr}
-            style={{..._style, backgroundColor: bg_color,}}
-            onClick={(e)=>{cb(e.target.value)}}
-            value={chr} > {chr}
-    </button>)
-}
-
 export default App
+
+function ComputeKeyColors (states,colors) {
+  const flat_state = states.flat();
+  const flat_colors = colors.flat();
+  const ret = {};
+  for (let i=0; i<flat_state.length; i++) {
+    if (!flat_state[i]) break;
+    const k = flat_state[i];
+    ret[k] = flat_colors[i];
+  }
+  return ret;
+}
+

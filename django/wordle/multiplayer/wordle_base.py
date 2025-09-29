@@ -96,7 +96,7 @@ class GameRoom:
         """
         if player_token not in self.players: return None
         r_state, r_over = self.state, self._game.is_over()
-        r_history = self._game.history
+        r_history = self._game.history.strip(',')
         is_your_round = self.is_players_turn(player_token)
         r_state = r_state.name.lower()
         return dict(zip(
@@ -104,7 +104,7 @@ class GameRoom:
                    (r_state, r_over, is_your_round, r_history, self._winner)))
 
     def submit_(self,guess,player_token,**kwargs)-> dict|None:
-        if player_token not in self.players: return None
+        if player_token not in self.players:       return None
         if not self.is_players_turn(player_token): return None
         check_result = self._game.check_answer(guess)
         if check_result is None: return None
