@@ -50,29 +50,8 @@ function BtnRect({chr, color, cb}) {
     </button>)
 }
 
-function firstEmpty(arr) {
-  for (let i=0; i<arr.length; i++) {
-    if (arr[i][0] == '') return i;
-  }
-  return 0;
-}
-
+import {firstEmpty, arrMap, dictMap} from './utils.js'
 const M = { p: COLORS['present'], h: COLORS['hit'], m: COLORS['miss'] };
-
-function arrMap(arr) {
-  return arr.map( (row) =>
-     row.map( (col) => {
-      if (col != '') return M[col];
-      else return '';
-    })
-  )
-}
-
-function dictMap(dict) {
-    const ret = {};
-    Object.keys(dict).forEach( (k) => { ret[k] = M[dict[k]]; })
-    return ret;
-}
 
 export function Panel({ _states, submit_handler,
                         game_ended=false, ignore_input=false,}) {
@@ -80,8 +59,8 @@ export function Panel({ _states, submit_handler,
   const round = useRef(firstEmpty(board_state)).current;
   const [cursor, setCursor] = useState({row:round, col:0});
 
-  const board_colors = arrMap(_states.board_colors) || {};
-  const key_colors = dictMap(_states.key_colors) || {};
+  const board_colors = arrMap(_states.board_colors,M) || {};
+  const key_colors = dictMap(_states.key_colors,M) || {};
 
   function on_input(chr) {
     if (game_ended) return;

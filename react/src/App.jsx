@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import './App.css'
 import Panel from './Components.jsx'
+import {ComputeKeyColors} from './utils.js'
 
 // configurations
 const default_config = {
@@ -30,7 +31,7 @@ function App() {
   const [game_ended, setGameEnded] = useState(false);
   const [hasWon, setHasWon] = useState(false);
 
-  async function fetchGameState() {
+  async function poll() {
     const API_URL = `${host}/task4/api/sync/${game_id}?player=${playerID}`;
     const response = await fetch(API_URL);
     if (response.ok) {
@@ -85,12 +86,11 @@ function App() {
       }
 
       // https://javascript.info/task/async-from-regular
-      // let data = fetchGameState() // MyMistake: very common problem to newcomers
-      fetchGameState(
-      ).then((data)=> { onSync(data); }
+      // let data = poll() // MyMistake: very common problem to newcomers
+      poll().then((data)=> { onSync(data); }
       ).catch((e)=>{ console.log(e); })
 
-    }, 2500);
+    }, 1000);
     return () => clearInterval(interval);
   })
 
@@ -131,16 +131,3 @@ function App() {
 }
 
 export default App
-
-function ComputeKeyColors (states,colors) {
-  const flat_state = states.flat();
-  const flat_colors = colors.flat();
-  const ret = {};
-  for (let i=0; i<flat_state.length; i++) {
-    if (!flat_state[i]) break;
-    const k = flat_state[i];
-    ret[k] = flat_colors[i];
-  }
-  return ret;
-}
-
